@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Tetris Game</title>
+  <!--  favicon  -->
+  <link rel="shortcut icon" href="./assets/images/favicon/tetris.ico" type="image/x-icon">
+  <!--  common : css  -->
+  <link rel="stylesheet" href="./assets/css/style.css">
+</head>
+
+<body>
+  <div class="outer">
+    <h2>TETRIS GAME</h2>
+    <button class="start">START</button>
+  </div>
+  <div class="wrapper">
+    <div class="bg-video">
+      <video src="./assets/media/video/tetris-bg.mp4" autoplay muted loop></video>
+    </div>
+    <div class="game">
+      <div class="game-text">
+        <span>게임종료</span>
+        <button>다시시작</button>
+      </div>
+      <div class="score">0</div>
+      <div class="playground">
+        <ul></ul>
+      </div>
+    </div>
+  </div>
+  <!-- common : js -->
+  <script src="./assets/js/main.js" type="module"></script>
+</body>
+
+</html>
