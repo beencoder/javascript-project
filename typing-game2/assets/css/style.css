@@ -14,10 +14,11 @@ body {
 
 .header {
     width: 100%;
+    padding: 1.2rem;
     background-color: #434F59;
     color: #fff;
     text-align: center;
-    padding: 1rem;
+    text-transform: uppercase;
 }
 
 .word-display {
