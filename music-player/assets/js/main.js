@@ -1,230 +1,181 @@
-const wrapper = document.querySelector(".wrapper"),
-    musicImg = wrapper.querySelector(".img-area img"),
-    musicName = wrapper.querySelector(".song-details .name"),
-    musicArtist = wrapper.querySelector(".song-details .artist"),
-    playPauseBtn = wrapper.querySelector(".play-pause"),
-    prevBtn = wrapper.querySelector("#prev"),
-    nextBtn = wrapper.querySelector("#next"),
-    mainAudio = wrapper.querySelector("#main-audio"),
-    progressArea = wrapper.querySelector(".progress-area"),
-    progressBar = progressArea.querySelector(".progress-bar"),
-    musicList = wrapper.querySelector(".music-list"),
-    moreMusicBtn = wrapper.querySelector("#more-music"),
-    closemoreMusic = musicList.querySelector("#close");
+const playerState = {
+  index: Math.floor(Math.random() * allMusic.length),
+  isPaused: true,
+  repeatMode: 'repeat' // repeat, repeat_one, shuffle
+};
+const dom = {
+  wrapper: document.querySelector(".wrapper"),
+  musicImg: document.querySelector(".img-area img"),
+  musicName: document.querySelector(".song-details .name"),
+  musicArtist: document.querySelector(".song-details .artist"),
+  playPauseBtn: document.querySelector(".play-pause"),
+  prevBtn: document.querySelector("#prev"),
+  nextBtn: document.querySelector("#next"),
+  mainAudio: document.querySelector("#main-audio"),
+  progressArea: document.querySelector(".progress-area"),
+  progressBar: document.querySelector(".progress-bar"),
+  musicList: document.querySelector(".music-list"),
+  ulTag: document.querySelector(".music-list ul"),
+  repeatBtn: document.querySelector("#repeat-plist")
+};
 
-let musicIndex = Math.floor((Math.random() * allMusic.length) + 1);
-isMusicPaused = true;
+const formatTime = (time) => {
+  if (isNaN(time)) return "0:00";
+  const min = Math.floor(time / 60);
+  const sec = Math.floor(time % 60);
+  return `${min}:${sec < 10 ? '0' + sec : sec}`;
+};
 
-window.addEventListener("load", () => {
-    loadMusic(musicIndex);
-    playingSong();
-});
+// 초기 실행
+init();
 
-function loadMusic(indexNumb) {
-    musicName.innerText = allMusic[indexNumb - 1].name;
-    musicArtist.innerText = allMusic[indexNumb - 1].artist;
-    musicImg.src = `./assets/images/${allMusic[indexNumb - 1].src}.jpg`;
-    mainAudio.src = `./assets/media/songs/${allMusic[indexNumb - 1].src}.mp3`;
+function init() {
+  renderPlaylist();
+  loadMusic(playerState.index);
+  setupEventListeners();
 }
 
-
-function playMusic() {
-    wrapper.classList.add("paused");
-    playPauseBtn.querySelector("i").innerText = "pause";
-    mainAudio.play();
+function loadMusic(index) {
+  const song = allMusic[index];
+  dom.musicName.innerText = song.name;
+  dom.musicArtist.innerText = song.artist;
+  dom.musicImg.src = `./assets/images/${song.src}.jpg`;
+  dom.mainAudio.src = `./assets/media/songs/${song.src}.mp3`;
+  updateCurrentPlayingUI();
 }
 
-
-function pauseMusic() {
-    wrapper.classList.remove("paused");
-    playPauseBtn.querySelector("i").innerText = "play_arrow";
-    mainAudio.pause();
+function togglePlay() {
+  const isPaused = dom.wrapper.classList.toggle("paused");
+  const icon = dom.playPauseBtn.querySelector("i");
+  
+  if (isPaused) {
+    icon.innerText = "pause";
+    dom.mainAudio.play();
+  } else {
+    icon.innerText = "play_arrow";
+    dom.mainAudio.pause();
+  }
 }
 
-//prev music function
-function prevMusic() {
-    musicIndex--;
-    musicIndex < 1 ? musicIndex = allMusic.length : musicIndex = musicIndex;
-    loadMusic(musicIndex);
-    playMusic();
-    playingSong();
+function changeMusic(isNext = true) {
+  if (isNext) {
+    playerState.index = (playerState.index + 1) % allMusic.length;
+  } else {
+    playerState.index = (playerState.index - 1 + allMusic.length) % allMusic.length;
+  }
+  loadMusic(playerState.index);
+  dom.mainAudio.play();
+  dom.wrapper.classList.add("paused");
+  dom.playPauseBtn.querySelector("i").innerText = "pause";
 }
 
+function setupEventListeners() {
+  dom.playPauseBtn.addEventListener("click", togglePlay);
+  dom.prevBtn.addEventListener("click", () => changeMusic(false));
+  dom.nextBtn.addEventListener("click", () => changeMusic(true));
 
-function nextMusic() {
-    musicIndex++;
-    musicIndex > allMusic.length ? musicIndex = 1 : musicIndex = musicIndex;
-    loadMusic(musicIndex);
-    playMusic();
-    playingSong();
+  dom.mainAudio.addEventListener("timeupdate", (e) => {
+    const { currentTime, duration } = e.target;
+    const progressWidth = (currentTime / duration) * 100;
+    dom.progressBar.style.width = `${progressWidth}%`;
+
+    dom.wrapper.querySelector(".current-time").innerText = formatTime(currentTime);
+  });
+
+  dom.mainAudio.addEventListener("loadeddata", () => {
+    dom.wrapper.querySelector(".max-duration").innerText = formatTime(dom.mainAudio.duration);
+  });
+
+  dom.progressArea.addEventListener("click", (e) => {
+    const width = dom.progressArea.clientWidth;
+    dom.mainAudio.currentTime = (e.offsetX / width) * dom.mainAudio.duration;
+    dom.mainAudio.play();
+    dom.wrapper.classList.add("paused");
+  });
+
+  // 반복 모드 변경
+  dom.repeatBtn.addEventListener("click", () => {
+    const modes = {
+      repeat: { next: 'repeat_one', title: 'Song looped' },
+      repeat_one: { next: 'shuffle', title: 'Playback shuffled' },
+      shuffle: { next: 'repeat', title: 'Playlist looped' }
+    };
+    const currentMode = dom.repeatBtn.innerText;
+    const { next, title } = modes[currentMode];
+    
+    dom.repeatBtn.innerText = next;
+    dom.repeatBtn.setAttribute("title", title);
+    playerState.repeatMode = next;
+  });
+
+  // 곡 종료 시
+  dom.mainAudio.addEventListener("ended", () => {
+    const mode = playerState.repeatMode;
+    if (mode === 'repeat_one') {
+      dom.mainAudio.currentTime = 0;
+      dom.mainAudio.play();
+    } else if (mode === 'shuffle') {
+      let randIndex;
+      do {
+        randIndex = Math.floor(Math.random() * allMusic.length);
+      } while (playerState.index === randIndex);
+      playerState.index = randIndex;
+      loadMusic(playerState.index);
+      dom.mainAudio.play();
+    } else {
+      changeMusic(true);
+    }
+  });
+
+  // 리스트 열기/닫기
+  document.querySelector("#more-music").addEventListener("click", () => dom.musicList.classList.toggle("show"));
+  document.querySelector("#close").addEventListener("click", () => dom.musicList.classList.remove("show"));
 }
 
+// 플레이리스트 실행 및 UI 업데이트
+function renderPlaylist() {
+  dom.ulTag.innerHTML = allMusic.map((song, i) => `
+    <li data-index="${i}">
+      <div class="row">
+        <span>${song.name}</span>
+        <p>${song.artist}</p>
+      </div>
+      <span id="duration-${i}" class="audio-duration">0:00</span>
+      <audio id="audio-${i}" src="./assets/media/songs/${song.src}.mp3"></audio>
+    </li>
+  `).join("");
 
-playPauseBtn.addEventListener("click", () => {
-    const isMusicPlay = wrapper.classList.contains("paused");
-
-    isMusicPlay ? pauseMusic() : playMusic();
-    playingSong();
-});
-
-
-prevBtn.addEventListener("click", () => {
-    prevMusic();
-});
-
-
-nextBtn.addEventListener("click", () => {
-    nextMusic();
-});
-
-
-mainAudio.addEventListener("timeupdate", (e) => {
-    const currentTime = e.target.currentTime;
-    const duration = e.target.duration;
-    let progressWidth = (currentTime / duration) * 100;
-    progressBar.style.width = `${progressWidth}%`;
-
-    let musicCurrentTime = wrapper.querySelector(".current-time"),
-        musicDuartion = wrapper.querySelector(".max-duration");
-    mainAudio.addEventListener("loadeddata", () => {
-        // update song total duration
-        let mainAdDuration = mainAudio.duration;
-        let totalMin = Math.floor(mainAdDuration / 60);
-        let totalSec = Math.floor(mainAdDuration % 60);
-        if (totalSec < 10) {
-            totalSec = `0${totalSec}`;
-        }
-        musicDuartion.innerText = `${totalMin}:${totalSec}`;
+  // 각 곡의 길이 미리 가져오기
+  allMusic.forEach((song, i) => {
+    const audio = dom.ulTag.querySelector(`#audio-${i}`);
+    audio.addEventListener("loadeddata", () => {
+      const durationTag = dom.ulTag.querySelector(`#duration-${i}`);
+      durationTag.innerText = formatTime(audio.duration);
+      durationTag.setAttribute("data-duration", formatTime(audio.duration));
     });
+  });
 
-    let currentMin = Math.floor(currentTime / 60);
-    let currentSec = Math.floor(currentTime % 60);
-    if (currentSec < 10) {
-        currentSec = `0${currentSec}`;
-    }
-    musicCurrentTime.innerText = `${currentMin}:${currentSec}`;
-});
-
-
-progressArea.addEventListener("click", (e) => {
-    let progressWidth = progressArea.clientWidth;
-    let clickedOffsetX = e.offsetX;
-    let songDuration = mainAudio.duration;
-
-    mainAudio.currentTime = (clickedOffsetX / progressWidth) * songDuration;
-    playMusic();
-    playingSong();
-});
-
-
-const repeatBtn = wrapper.querySelector("#repeat-plist");
-repeatBtn.addEventListener("click", () => {
-    let getText = repeatBtn.innerText;
-    switch (getText) {
-        case "repeat":
-            repeatBtn.innerText = "repeat_one";
-            repeatBtn.setAttribute("title", "Song looped");
-            break;
-        case "repeat_one":
-            repeatBtn.innerText = "shuffle";
-            repeatBtn.setAttribute("title", "Playback shuffled");
-            break;
-        case "shuffle":
-            repeatBtn.innerText = "repeat";
-            repeatBtn.setAttribute("title", "Playlist looped");
-            break;
-    }
-});
-
-
-mainAudio.addEventListener("ended", () => {
-
-    let getText = repeatBtn.innerText;
-    switch (getText) {
-        case "repeat":
-            nextMusic();
-            break;
-        case "repeat_one":
-            mainAudio.currentTime = 0;
-            loadMusic(musicIndex);
-            playMusic();
-            break;
-        case "shuffle":
-            let randIndex = Math.floor((Math.random() * allMusic.length) + 1);
-            do {
-                randIndex = Math.floor((Math.random() * allMusic.length) + 1);
-            } while (musicIndex == randIndex);
-            musicIndex = randIndex;
-            loadMusic(musicIndex);
-            playMusic();
-            playingSong();
-            break;
-    }
-});
-
-
-moreMusicBtn.addEventListener("click", () => {
-    musicList.classList.toggle("show");
-});
-closemoreMusic.addEventListener("click", () => {
-    moreMusicBtn.click();
-});
-
-const ulTag = wrapper.querySelector("ul");
-
-for (let i = 0; i < allMusic.length; i++) {
-
-    let liTag = `<li li-index="${i + 1}">
-                <div class="row">
-                  <span>${allMusic[i].name}</span>
-                  <p>${allMusic[i].artist}</p>
-                </div>
-                <span id="${allMusic[i].src}" class="audio-duration">3:40</span>
-                <audio class="${allMusic[i].src}" src="songs/${allMusic[i].src}.mp3"></audio>
-              </li>`;
-    ulTag.insertAdjacentHTML("beforeend", liTag);
-
-    let liAudioDuartionTag = ulTag.querySelector(`#${allMusic[i].src}`);
-    let liAudioTag = ulTag.querySelector(`.${allMusic[i].src}`);
-    liAudioTag.addEventListener("loadeddata", () => {
-        let duration = liAudioTag.duration;
-        let totalMin = Math.floor(duration / 60);
-        let totalSec = Math.floor(duration % 60);
-        if (totalSec < 10) {
-            totalSec = `0${totalSec}`;
-        };
-        liAudioDuartionTag.innerText = `${totalMin}:${totalSec}`;
-        liAudioDuartionTag.setAttribute("t-duration", `${totalMin}:${totalSec}`); //adding t-duration attribute with total duration value
-    });
+  dom.ulTag.addEventListener("click", (e) => {
+    const li = e.target.closest("li");
+    if (!li) return;
+    playerState.index = Number(li.getAttribute("data-index"));
+    loadMusic(playerState.index);
+    dom.mainAudio.play();
+    dom.wrapper.classList.add("paused");
+    dom.playPauseBtn.querySelector("i").innerText = "pause";
+  });
 }
 
-
-function playingSong() {
-    const allLiTag = ulTag.querySelectorAll("li");
-
-    for (let j = 0; j < allLiTag.length; j++) {
-        let audioTag = allLiTag[j].querySelector(".audio-duration");
-
-        if (allLiTag[j].classList.contains("playing")) {
-            allLiTag[j].classList.remove("playing");
-            let adDuration = audioTag.getAttribute("t-duration");
-            audioTag.innerText = adDuration;
-        }
-
-
-        if (allLiTag[j].getAttribute("li-index") == musicIndex) {
-            allLiTag[j].classList.add("playing");
-            audioTag.innerText = "Playing";
-        }
-
-        allLiTag[j].setAttribute("onclick", "clicked(this)");
+function updateCurrentPlayingUI() {
+  const allLi = dom.ulTag.querySelectorAll("li");
+  allLi.forEach((li, i) => {
+    const durationTag = li.querySelector(".audio-duration");
+    if (i === playerState.index) {
+      li.classList.add("playing");
+      durationTag.innerText = "Playing";
+    } else {
+      li.classList.remove("playing");
+      durationTag.innerText = durationTag.getAttribute("data-duration") || "0:00";
     }
-}
-
-function clicked(element) {
-    let getLiIndex = element.getAttribute("li-index");
-    musicIndex = getLiIndex;
-    loadMusic(musicIndex);
-    playMusic();
-    playingSong();
+  });
 }
