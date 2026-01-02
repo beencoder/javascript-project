@@ -1,6 +1,25 @@
 import BLOCKS from "./blocks.js"
 
-//DOM
+const CONFIG = {
+    ROWS: 20,
+    COLS: 10,
+    INITIAL_DURATION: 700,
+    FAST_DURATION: 10
+};
+
+let gameState = {
+    score: 0,
+    duration: CONFIG.INITIAL_DURATION,
+    downInterval: null,
+    tempMovingItem: null,
+    movingItem: {
+        type: "",
+        direction: 0,
+        top: 0,
+        left: 3,
+    }
+};
+
 const playground = document.querySelector(".playground > ul");
 const gameText = document.querySelector(".game-text");
 const scoreDisplay = document.querySelector(".score");
@@ -9,197 +28,166 @@ const game = document.querySelector(".game");
 const startButton = document.querySelector(".outer .start");
 const restartButton = document.querySelector(".game-text > button");
 
-//Seting
-const GAME_ROWS = 20;
-const GAME_COLS = 10;
-
-//variables
-let score = 0;
-let duration = 500;
-let downInterval;
-let tempMovingItem;
-
-const movingItem = {
-    type: "",
-    direction: 3,
-    top: 5,
-    left: 3,
-};
-
+// 초기 실행
 init();
 
-//functions
 function init() {
-    tempMovingItem = {
-        ...movingItem
-    };
+  gameState.score = 0;
+  scoreDisplay.innerText = 0;
+  gameState.tempMovingItem = { ...gameState.movingItem };
+  
+  renderGrid();
+  generateNewBlock();
+}
 
-    for (let i = 0; i < GAME_ROWS; i++) {
-        prependNewLine();
-    }
-    generateNewBlock();
+// 그리드 생성
+function renderGrid() {
+  playground.innerHTML = "";
+
+  for (let i = 0; i < CONFIG.ROWS; i++) {
+    prependNewLine();
+  }
 }
 
 function prependNewLine() {
-    const li = document.createElement("li");
-    const ul = document.createElement("ul");
-    for (let j = 0; j < GAME_COLS; j++) {
-        const matrix = document.createElement("li");
-        ul.prepend(matrix);
-    }
-    li.prepend(ul);
-    playground.prepend(li);
+  const li = document.createElement("li");
+  const ul = document.createElement("ul");
+  for (let j = 0; j < CONFIG.COLS; j++) {
+    const matrix = document.createElement("li");
+    ul.prepend(matrix);
+  }
+  li.prepend(ul);
+  playground.prepend(li);
 }
 
+// 블록 생성
 function renderBlocks(moveType = "") {
-    const {
-        type,
-        direction,
-        top,
-        left
-    } = tempMovingItem;
-    const movingBlocks = document.querySelectorAll(".moving");
-    movingBlocks.forEach(moving => {
-        moving.classList.remove(type, "moving");
-    });
-    BLOCKS[type][direction].some(block => {
-        const x = block[0] + left;
-        const y = block[1] + top;
-        const target = playground.childNodes[y] ? playground.childNodes[y].childNodes[0].childNodes[x] : null;
-        const isAvailable = checkEmpty(target);
-        if (isAvailable) {
-            target.classList.add(type, "moving");
-        } else {
-            tempMovingItem = {
-                ...movingItem
-            };
-            if (moveType === "retry") {
-                clearInterval(downInterval);
-                showGameoverText();
-            }
-            setTimeout(() => {
-                renderBlocks("retry");
-                if (moveType === "top") {
-                    seizeBlock();
-                }
-            }, 0);
-            return true;
-        }
-    });
-    movingItem.left = left;
-    movingItem.top = top;
-    movingItem.direction = direction;
+  const { type, direction, top, left } = gameState.tempMovingItem;
+  
+  // 이전 포지션 제거
+  const movingBlocks = document.querySelectorAll(".moving");
+  movingBlocks.forEach(moving => moving.classList.remove(type, "moving"));
+
+  // 새로운 포지션 계산 및 충돌 체크
+  const isCollision = BLOCKS[type][direction].some(block => {
+    const x = block[0] + left;
+    const y = block[1] + top;
+    
+    const row = playground.childNodes[y];
+    const target = row ? row.querySelector("ul").childNodes[x] : null;
+    
+    if (!checkEmpty(target)) return true;
+    
+    target.classList.add(type, "moving");
+    return false;
+  });
+
+  if (isCollision) {
+    handleCollision(moveType);
+  } else {
+    updateCurrentPosition();
+  }
+}
+
+function handleCollision(moveType) {
+  gameState.tempMovingItem = { ...gameState.movingItem };
+  
+  if (moveType === "retry") {
+    stopGame();
+  } else {
+    setTimeout(() => {
+      renderBlocks("retry");
+      if (moveType === "top") seizeBlock();
+    }, 0);
+  }
+}
+
+function updateCurrentPosition() {
+  const { top, left, direction } = gameState.tempMovingItem;
+  gameState.movingItem = { ...gameState.movingItem, top, left, direction };
 }
 
 function seizeBlock() {
-    const movingBlocks = document.querySelectorAll(".moving");
-    movingBlocks.forEach(moving => {
-        moving.classList.remove("moving");
-        moving.classList.add("seized");
-    });
-    checkMatch();
+  document.querySelectorAll(".moving").forEach(moving => {
+    moving.classList.remove("moving");
+    moving.classList.add("seized");
+  });
+  checkMatch();
 }
 
 function checkMatch() {
-    const childNodes = playground.childNodes;
-    childNodes.forEach(child => {
-        let matched = true;
-        child.children[0].childNodes.forEach(li => {
-            if (!li.classList.contains("seized")) {
-                matched = false;
-            }
-        });
-        if (matched) {
-            child.remove();
-            prependNewLine();
-            score++;
-            scoreDisplay.innerText = score;
-        }
-    });
-
-    generateNewBlock();
+  const rows = playground.childNodes;
+  rows.forEach(row => {
+    const cells = row.querySelectorAll("ul > li");
+    const isMatched = Array.from(cells).every(cell => cell.classList.contains("seized"));
+    
+    if (isMatched) {
+      row.remove();
+      prependNewLine();
+      gameState.score++;
+      scoreDisplay.innerText = gameState.score;
+    }
+  });
+  generateNewBlock();
 }
 
 function generateNewBlock() {
-    clearInterval(downInterval);
-    downInterval = setInterval(() => {
-        moveBlock("top", 1);
-    }, duration);
+  clearInterval(gameState.downInterval);
+  gameState.downInterval = setInterval(() => moveBlock("top", 1), gameState.duration);
 
-    const blockArray = Object.entries(BLOCKS);
-    const randomIndex = Math.floor(Math.random() * blockArray.length);
-    movingItem.type = blockArray[randomIndex][0];
-    movingItem.top = 0;
-    movingItem.left = 3;
-    movingItem.direction = 0;
-    tempMovingItem = {
-        ...movingItem
-    };
-    renderBlocks();
+  const blockKeys = Object.keys(BLOCKS);
+  const randomType = blockKeys[Math.floor(Math.random() * blockKeys.length)];
+
+  gameState.movingItem = { type: randomType, direction: 0, top: 0, left: 3 };
+  gameState.tempMovingItem = { ...gameState.movingItem };
+  renderBlocks();
 }
 
 function checkEmpty(target) {
-    if (!target || target.classList.contains("seized")) {
-        return false;
-    }
-    return true;
+  return target && !target.classList.contains("seized");
 }
 
 function moveBlock(moveType, amount) {
-    tempMovingItem[moveType] += amount;
-    renderBlocks(moveType);
+  gameState.tempMovingItem[moveType] += amount;
+  renderBlocks(moveType);
 }
 
 function changeDirection() {
-    const direction = tempMovingItem.direction;
-    direction === 3 ? (tempMovingItem.direction = 0) : (tempMovingItem.direction += 1);
-    renderBlocks();
+  gameState.tempMovingItem.direction = (gameState.tempMovingItem.direction + 1) % 4;
+  renderBlocks();
 }
 
 function dropBlock() {
-    clearInterval(downInterval);
-    downInterval = setInterval(() => {
-        moveBlock("top", 1);
-    }, 10);
+  clearInterval(gameState.downInterval);
+  gameState.downInterval = setInterval(() => moveBlock("top", 1), CONFIG.FAST_DURATION);
 }
 
-function showGameoverText() {
-    gameText.style.display = "flex";
+function stopGame() {
+  clearInterval(gameState.downInterval);
+  gameText.style.display = "flex";
 }
 
-//event handling
 document.addEventListener("keydown", e => {
-    switch (e.keyCode) {
-        case 39:
-            moveBlock("left", 1);
-            break;
-        case 37:
-            moveBlock("left", -1);
-            break;
-        case 40:
-            moveBlock("top", 1);
-            break;
-        case 38:
-            changeDirection();
-            break;
-        case 32:
-            dropBlock();
-            break;
-        default:
-            break;
-    }
+  const actions = {
+    ArrowRight: () => moveBlock("left", 1),
+    ArrowLeft: () => moveBlock("left", -1),
+    ArrowDown: () => moveBlock("top", 1),
+    ArrowUp: () => changeDirection(),
+    " ": () => dropBlock() 
+  };
+
+  if (actions[e.key]) {
+    actions[e.key]();
+  }
 });
 
 startButton.addEventListener("click", () => {
-    playground.innerHTML = "";
-    outer.style.display = "none";
-    game.style.display = "block";
-    gameText.style.display = "none";
-    init();
+  outer.style.display = "none";
+  game.style.display = "block";
+  init();
 });
 
 restartButton.addEventListener("click", () => {
-    playground.innerHTML = "";
-    gameText.style.display = "none";
-    init();
-});
+  gameText.style.display = "none";
+  init();
+})
