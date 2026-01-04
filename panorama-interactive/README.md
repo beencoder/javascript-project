@@ -1,5 +1,5 @@
 # 🧪 CSS 3D Lab
-> 자바스크립트 없이 CSS만으로 구현한 3D 인터랙티브 실감형 UI 공간입니다.
+> 자바스크립트 없이 CSS만으로 구현한 3D 인터랙티브 UI입니다.
 
 **Live Demo:** [https://beencoder.github.io/javascript-project/panorama-interactive](https://beencoder.github.io/javascript-project/panorama-interactive)
 
